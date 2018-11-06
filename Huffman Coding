@@ -1,1 +1,313 @@
+// Huffman Coding.cpp : Defines the entry point for the console application.
+//
+#include <iostream>
+#include <fstream>
+#include <string>
+#include <map>
+#include <iterator>
+#include <regex>
 
+#define FILESIZE 27 //Edit this when adding characters. Note: Regex will need to be updated for non valid characters
+
+using namespace std;
+
+class huffmanNode
+{
+protected:
+	float weight = 0;
+	char element;
+	bool leaf = 0;
+public:
+	huffmanNode *left = NULL;
+	huffmanNode *right = NULL;
+
+	huffmanNode()
+	{
+		//Default Constructor
+	};
+
+	huffmanNode(float setWeight, huffmanNode *l, huffmanNode *r)
+	{
+		weight = setWeight;
+		left = l; //Assigned 1st, therefore, will always be the smaller child. 
+		right = r;
+		leaf = 0; //internal Node
+	}
+
+	huffmanNode(float setWeight, char ele)
+	{
+		element = ele;
+		weight = setWeight;
+		leaf = 1; //Leaf Node
+	}
+
+	void setElement(char ele)//Deprecated
+	{
+		element = ele;
+	}
+
+	char getElement()
+	{
+		return element;
+	};
+
+	bool isLeaf()
+	{
+		return leaf;
+	}
+	float getWeight()
+	{
+		return weight;
+	}
+	void setWeight(float weightValue)
+	{
+		weight = weightValue;
+	}
+};
+
+class minHeap
+{
+public:
+	void swap(huffmanNode *root, huffmanNode *largest)
+	{
+		huffmanNode temp = *root;
+		*root = *largest;
+		*largest = temp;
+	}
+
+	void minHeapify(huffmanNode heap[], int size, int parent)
+	{
+		int smallest = parent;
+		int left = 2 * parent + 1;
+		int right = 2 * parent + 2;
+
+		if (left < size && heap[left].getWeight() > heap[smallest].getWeight())
+		{
+			smallest = left;
+		}
+
+		if (right < size && heap[right].getWeight() > heap[smallest].getWeight())
+		{
+			smallest = right;
+		}
+
+		if (smallest != parent)
+		{
+			swap(&heap[parent], &heap[smallest]);
+			minHeapify(heap, size, smallest);
+		}
+	}
+
+	void minHeapSort(huffmanNode heap[], int size)
+	{
+		for (int parent = size / 2 - 1; parent >= 0; parent--) // size / 2 - 1 represents first non-leaf or 1st parent from bottom up.
+		{
+			minHeapify(heap, size, parent);
+		}
+
+		for (int i = size - 1; i >= 0; i--)
+		{
+			//swap root, with last element, -1, -1 ...
+			swap(&heap[0], &heap[i]);
+			//Heapify remaining elements minus sorted, this ensures root node is always next sorted.
+			minHeapify(heap, i, 0);
+		}
+	}
+
+	huffmanNode removeRoot(huffmanNode heap[], int *size)
+	{
+		huffmanNode root = heap[0];//Save root node
+		heap[0] = heap[*size-1];//replace root node with last element 
+		heap[*size - 1].setWeight(1000); //change the weight of last element so user knows this is not being used
+		*size = *size - 1; // 1 less size
+		minHeapSort(heap, *size);
+		return root;
+	}
+
+	void addNode(huffmanNode heap[], huffmanNode internal, int *size)
+	{
+		//int maxSize = 27;
+		if (*size + 1 <= FILESIZE)
+		{
+			heap[*size] = internal;
+			*size = *size + 1;
+			minHeapSort(heap, *size);
+		}
+		else
+		{
+			cout << "Heap is full!\n" << endl;
+			return;
+		}
+	}
+
+	void printArray(huffmanNode heap[], int size)
+	{
+		for (int i = 0; i < size; ++i)
+		{
+			cout << heap[i].getWeight() << " ";
+		}
+		cout << endl;
+	}
+};
+
+class huffmanTree
+{
+private:
+	minHeap huffmanHeap;
+	huffmanNode returnNode;
+	map <char, string> codes;
+	huffmanNode huffArray[FILESIZE];
+	int size = 0;
+public:
+	void readFile()
+	{
+		ifstream myFile("freq.txt");
+		if (myFile.is_open())
+		{
+			while (myFile.good())
+			{
+				myFile.get();//Move file pointer to correct element
+				char element = myFile.get(); //assign element to type char
+				string test(1, element);
+				regex character("[a-zA-Z]"); //Regular expression for verifying input is a - z
+				regex space("[ ]"); //allow space as a character
+				if (regex_match(test, character) || regex_match(test, space))
+				{
+					myFile.get();//Move file pointer
+					myFile.get();//Move file pointer
+					string stringWeight;
+					getline(myFile, stringWeight);
+					float weight = stof(stringWeight);
+					huffmanNode insert(weight, element);
+					huffArray[size] = insert;
+					size++;
+				}
+				else
+				{
+					cout << "Invalid input! Check your input file." << size << endl;
+					exit(1);
+				}
+			}
+			myFile.close();
+		}
+		else
+		{
+			cout << "Unable to Open!" << endl;
+			exit(1);//"Graceful" Exit
+		}
+	}
+	huffmanTree()
+	{
+		readFile();
+		huffmanHeap.minHeapSort(huffArray, size);
+	}
+
+	huffmanNode buildTree()
+	{
+		string codes = "";
+		while (size > 1)//Size of MinHeap
+		{
+			huffmanNode *temp1 = new huffmanNode(huffmanHeap.removeRoot(huffArray, &size));
+			huffmanNode *temp2 = new huffmanNode(huffmanHeap.removeRoot(huffArray, &size));
+			huffmanNode *temp3 = new huffmanNode(temp1->getWeight() + temp2->getWeight(), temp1, temp2);
+			huffmanHeap.addNode(huffArray, *temp3, &size);
+			returnNode = *temp3;
+		}
+		mapCodes(&returnNode, codes); //Map binary path 
+		return returnNode;
+	}
+
+	void printCodes(huffmanNode *root, string str)
+	{
+		if (root == NULL)
+			return;
+
+		printCodes(root->left, str + "0");
+		if (root->isLeaf())
+		{
+			cout << root->getElement() << ": " << str << endl;
+		}
+		printCodes(root->right, str + "1");
+	}
+
+	string encodeString(string str)
+	{
+		string encodedString = "";
+		cout << "String to Decode: " << str << endl;
+		map<char, string>::iterator itr;
+		for (int i = 0; i < str.size(); i++)
+		{
+			itr = codes.find(str[i]);
+			if (itr != codes.end())
+			{
+				encodedString += itr->second;
+			}
+			else
+			{
+				cout << "Element not found: Error" << endl;
+			}
+		}
+		cout << "Encoded String: " << encodedString << "\n" << endl;
+		return encodedString;
+	}
+
+	string decodeString(string str)
+	{
+		huffmanNode* tmp = &returnNode;
+		string message = "";
+		cout << "Message to Decode: " << str << endl;
+		for (int i = 0; i < str.size(); i++)
+		{
+			if (str[i] == '0')
+			{
+				tmp = tmp->left;
+			}
+			else
+			{
+				tmp = tmp->right;
+			}
+			if (tmp->isLeaf())
+			{
+				message += tmp->getElement();
+				tmp = &returnNode;
+			}
+		}
+		cout << "Decoded Message: " << message << "\n" << endl;
+		return message;
+	}
+
+	void mapCodes(huffmanNode *root, string str)
+	{
+		if (root == NULL)
+			return;
+
+		mapCodes(root->left, str + "0");
+		if (root->isLeaf())
+		{
+			codes.insert(pair <char, string>(root->getElement(), str));
+		}
+		mapCodes(root->right, str + "1");
+	}
+
+	void printMap()
+	{
+		map<char, string> ::iterator itr;
+		cout << "Codes: " << endl;
+		for (itr = codes.begin(); itr != codes.end();++itr)
+		{
+			cout << itr->first << " " << itr->second << endl;
+		}
+	}
+};
+
+int main()
+{
+	string message = "0110011011111000100011110100000100000101110101110000011011110";
+	string crypto = "hello world";
+	huffmanTree huff;
+	huff.buildTree();
+	//huff.printMap();
+	//huff.decodeString(message);
+	huff.encodeString(crypto);
+    return 0;
+}
