@@ -1,4 +1,4 @@
-// Huffman Coding.cpp : Defines the entry point for the console application.
+                events.deleteNode(events.qLength()-1);//Removes last arrival event (did not make it before bank closed)// Huffman Coding.cpp : Defines the entry point for the console application.
 //
 #include <iostream>
 #include <fstream>
